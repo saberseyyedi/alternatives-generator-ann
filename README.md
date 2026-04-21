@@ -53,7 +53,7 @@ Step 6  ──► Packaging, docs, GitHub release
 ### ✅ STEP 0  –  Baseline ANN  *(current meeting)*
 **Goal:** A working, transparent ANN to review with the supervisor.  
 **Files:** `demo/step0_simple_ann_numpy.py` (pure NumPy, no framework needed)  
-         `demo/step0_simple_ann.py`       (TensorFlow/Keras version)  
+         `demo/step0_simple_ann.py`       (PyTorch version)  
 **Architecture:** `Input(4) → Dense(5, ReLU) → Dense(5, ReLU) → Dense(1, linear)`  
 **What it shows:**
 - Weight matrix W and bias b for every layer, before and after training  
@@ -234,7 +234,7 @@ alternatives_generator/
 │
 ├── demo/
 │   ├── step0_simple_ann_numpy.py  ← ✅ DONE – baseline ANN (pure NumPy)
-│   ├── step0_simple_ann.py        ← ✅ DONE – baseline ANN (TensorFlow)
+│   ├── step0_simple_ann.py        ← ✅ DONE – baseline ANN (PyTorch)
 │   ├── step1_attach_module.py
 │   ├── step5_regression_benchmark.py
 │   └── step5_classification_demo.py
@@ -257,7 +257,7 @@ alternatives_generator/
 ## Key Design Principles
 
 1. **Non-invasive** — the module wraps any model without changing its weights or training loop
-2. **Framework-agnostic** — designed for NumPy internals; TensorFlow/PyTorch adapters added as thin wrappers
+2. **Framework-agnostic core** — all math is implemented in NumPy; PyTorch is used as the model interface layer
 3. **Configurable** — all hyperparameters (N^M, R, ε) are exposed as constructor arguments
 4. **Observable** — every intermediate value (z, Pr, b, Ω) can be inspected for research purposes
 5. **Reproducible** — all random operations accept a seed
