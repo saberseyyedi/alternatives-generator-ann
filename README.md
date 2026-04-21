@@ -264,23 +264,6 @@ alternatives_generator/
 
 ---
 
-## Questions for Supervisor Meeting (Step 0 Review)
-
-1. Should mask weights be initialised from the base model's existing W (sparse copy)
-   or initialised fresh (Glorot uniform)?  
-   → The paper implies *same type as original logit*, suggesting a sparse copy.
-
-2. Should the AlternativesGenerator be applied only to the final output layer,
-   or should it optionally be attachable to intermediate layers?
-
-3. For the behavior function, should Y^s (the training label distribution) be stored
-   in the module as a fixed histogram, or should it be updated online?
-
-4. Is the goal of this project to reproduce the exact paper results, or to create a
-   general-purpose open-source tool that *implements* the paper's ideas?
-
----
-
 ## Dependencies
 
 | Package | Purpose | Step |
