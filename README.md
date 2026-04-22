@@ -37,7 +37,7 @@ Alternatives Generator to *any* existing ANN without touching its internals.
 ## Development Roadmap
 
 ```
-Step 0  ──► Baseline ANN (this meeting)
+Step 0  ──► Baseline ANN 
 Step 1  ──► AlternativesGenerator module
 Step 2  ──► WeightedProbability function
 Step 3  ──► BehaviorFunction
@@ -50,7 +50,7 @@ Step 6  ──► Packaging, docs, GitHub release
 
 ## Step-by-Step Plan (Detailed)
 
-### ✅ STEP 0  –  Baseline ANN  *(current meeting)*
+### ✅ STEP 0  –  Baseline ANN  
 **Goal:** A working, transparent ANN to review with the supervisor.  
 **Files:** `demo/step0_simple_ann_numpy.py` (pure NumPy, no framework needed)  
          `demo/step0_simple_ann.py`       (PyTorch version)  
