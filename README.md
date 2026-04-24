@@ -1,5 +1,6 @@
 # Alternatives Generator for ANN
 ### Master Research Project – RCSE, TU Ilmenau  
+*15 credits · Research basis for the following 30-credit thesis*
 
 ---
 
@@ -37,8 +38,7 @@ Alternatives Generator to *any* existing ANN without touching its internals.
 ## Development Roadmap
 
 ```
-Step 0  ──► Baseline ANN 
-Step 1  ──► AlternativesGenerator module
+Step 1  ──► DONE – Logit Masking demo
 Step 2  ──► WeightedProbability function
 Step 3  ──► BehaviorFunction
 Step 4  ──► ProspectCertainty integration
@@ -50,65 +50,39 @@ Step 6  ──► Packaging, docs, GitHub release
 
 ## Step-by-Step Plan (Detailed)
 
-### ✅ STEP 0  –  Baseline ANN  
-**Goal:** A working, transparent ANN to review with the supervisor.  
-**Files:** `demo/step0_simple_ann_numpy.py` (pure NumPy, no framework needed)  
-         `demo/step0_simple_ann.py`       (PyTorch version)  
-**Architecture:** `Input(4) → Dense(5, ReLU) → Dense(5, ReLU) → Dense(1, linear)`  
-**What it shows:**
-- Weight matrix W and bias b for every layer, before and after training  
-- Pre-activation values z = Wx + b  
-- Post-activation values a = activation(z)  
-- Which neurons are "active" (a > 0 for ReLU)  
+### STEP 1  –  Logit Masking Demo  
+**Status:** Done. 
+**Goal:** Demonstrate that mask nodes can be attached to any output logit,
+each with a random partial connection to the previous layer.
 
-**Review checkpoint:** Run step0 with supervisor, confirm output format is useful.
+**What the demo shows:**
+- 4 neurons on the left side (previous layer)
+- 2 logits on the right side (output layer), fully connected to all 4
+- 3 masks per logit, each randomly connected to 2 of the 4 left neurons
+- Weight values for every connection
+- Output value for every logit and every mask
+- A visual connection map showing which neurons each mask uses
 
----
+**Key concept:** Each mask sees only part of the input, so it produces
+a slightly different output value than the original logit. The spread
+between these values is the first signal of uncertainty.
 
-### STEP 1  –  AlternativesGenerator Module  *(first module sprint)*
-**Goal:** Attach N_mask extra output nodes to any existing model's output layer.
+**Files:** `demo/step1_masks_demo.py`
 
-**Concept (from paper §"Logit masking"):**
-- For each original output logit u_i, generate N^M_i mask nodes
-- Each mask connects to only a *fraction* R_i,j of the previous layer's neurons
-- The fraction and which neurons are chosen randomly
-- The original logit remains unchanged (fully connected)
-
-**API design:**
+**Configuration (easy to change at the top of the file):**
 ```python
-from src.alternatives_generator import AlternativesGenerator
-
-ag = AlternativesGenerator(
-    base_model    = my_trained_model,   # any model with a Dense output layer
-    n_masks       = 3,                  # N^M: masks per logit
-    ratio_range   = (0.4, 0.7),         # R: min/max random connection fraction
-    seed          = 42,
-)
-
-# Forward pass returns original logits + all mask outputs
-original, alternatives = ag.forward(x)
-# original      shape: (batch, n_logits)
-# alternatives  shape: (batch, n_logits, n_masks)
+N_LEFT  = 4   # neurons in the previous layer
+N_RIGHT = 2   # logits in the output layer
+N_MASKS = 3   # masks per logit
+N_CONN  = 2   # connections per mask (half of N_LEFT)
 ```
 
-**Key design decisions to discuss:**
-- How to freeze base model weights vs. allow fine-tuning  
-- Whether masks share the previous-layer weight matrix or get their own weights  
-  → Paper implies **own weight subset** (sparse copy of W)  
-- How to handle Conv layers before the output (flatten, pool, or restrict to Dense)
-
-**Files to create:**
-- `src/alternatives_generator/core.py`     — AlternativesGenerator class  
-- `src/alternatives_generator/__init__.py` — public API  
-- `demo/step1_attach_module.py`            — demo  
-- `tests/test_step1.py`                    — unit tests  
-
 ---
 
-### STEP 2  –  WeightedProbability Function  *(second sprint)*
+### STEP 2  –  WeightedProbability Function  *(next sprint)*
 **Goal:** Assign each node (original + masks) a weighted probability Pr^w.
 
-**Concept (from paper §"Weighted probability"):**
+**Concept (from paper Section "Weighted probability"):**
 
 The probability reflects three things:
 1. **Occurrence count** — how often does this node's value appear among all siblings?
@@ -116,90 +90,70 @@ The probability reflects three things:
 3. **Logit priority** — original logit gets a slight edge over masks (bias constant s)
 
 Equations from the paper:
-
 ```
 Pr_t(u_t) = count(u_t, {masks, logit}) / (N^M + 1)
 
-w_i,t   = 1 / ln(|û_i,t − µ| / d + e + ε)          # logit weight
-w_i,j,t = 1 / ln(|û_i,j,t − µ| / d + e + ε + s)    # mask weight
+w_i,t   = 1 / ln(|u_i,t − µ| / d + e + ε)        # logit weight
+w_i,j,t = 1 / ln(|u_i,j,t − µ| / d + e + ε + s)  # mask weight
 
 Pr^w_t(u_t, w_t) = w_t · Pr_t(u_t)   [then normalized across siblings]
 ```
 
-**What to implement:**
+**Files to create:**
 - `src/alternatives_generator/weighted_probability.py`
-  - `compute_probability(values)`
-  - `compute_weights(values, is_logit=False)`
-  - `compute_weighted_probability(values)`
-
-**Demo:** Visualise the circle-size diagram from Fig. 2 of the paper.
+- `demo/step2_weighted_probability.py`
+- `tests/test_step2.py`
 
 ---
 
 ### STEP 3  –  Behavior Function  *(third sprint)*
-**Goal:** Measure how much each node "helps" the model's output distribution
-         align with the training label distribution.
+**Goal:** Measure how much each node helps the model output distribution
+align with the training label distribution.
 
-**Concept (from paper §"Behavior function"):**
-
-Uses the Wasserstein-2 distance:
+**Concept (from paper Section "Behavior function"):**
 ```
-b(u_t) = W₂(Y^s, Ŷ_{t-1}) − W₂(Y^s, Ŷ_t(g(u_t)))
+b(u_t) = W2(Y^s, Y_{t-1}) − W2(Y^s, Y_t(g(u_t)))
 ```
+- Positive b → node improves alignment with training distribution
+- Negative b → node moves output distribution further away
+- Zero        → node has no effect
 
-- Positive b → node improves alignment with training distribution  
-- Negative b → node moves output distribution further away  
-- Zero        → node has no effect  
-
-**What to implement:**
+**Files to create:**
 - `src/alternatives_generator/behavior.py`
-  - `wasserstein2(dist_a, dist_b)` (can use `scipy.stats.wasserstein_distance`)
-  - `BehaviorTracker` — maintains a rolling output history `Ŷ`
-  - `compute_behavior(node_value, y_source, y_history)`
-
-**Important note:** This function requires **access to the source label
-distribution Y^s**. The module will accept this as a parameter during
-initialisation or as a running buffer updated during deployment.
+- `demo/step3_behavior_function.py`
+- `tests/test_step3.py`
 
 ---
 
 ### STEP 4  –  ProspectCertainty Integration  *(fourth sprint)*
-**Goal:** Combine Pr^w and b() through Kahneman–Tversky prospect theory
-         to produce a scalar certainty score Ω for each node.
+**Goal:** Combine Pr^w and b() through Kahneman-Tversky prospect theory
+to produce a scalar certainty score Omega for each node.
 
-**Concept (from paper §"Prospect certainty"):**
-
+**Concept (from paper Section "Prospect certainty"):**
 ```
-Ω(u_t) = Ω^b(b(u_t)) · Ω^w(Pr^w_t(u_t))
+Omega(u_t) = Omega^b(b(u_t)) * Omega^w(Pr^w_t(u_t))
 
-Ω^b(b) = b^ε₁                  if b ≥ ε   (gain)
-        = −γ_b · (−b)^ε₂       if b < ε   (loss)
+Omega^b(b) = b^e1                 if b >= epsilon  (gain)
+           = -gamma_b * (-b)^e2   if b <  epsilon  (loss)
 
-Ω^w(Pr^w) = exp(−(−ln Pr^w)^γ_w)          # Prelec function
+Omega^w(Pr^w) = exp(-(- ln Pr^w)^gamma_w)   [Prelec function]
 
-Parameters (Kahneman & Tversky, 1992):
-  ε₁ = ε₂ = 0.88,  γ_b = 2.25,  γ_w = 0.61
+Parameters: e1 = e2 = 0.88,  gamma_b = 2.25,  gamma_w = 0.61
 ```
 
-**What to implement:**
+**Files to create:**
 - `src/alternatives_generator/prospect.py`
-  - `value_function(b, eps1=0.88, eps2=0.88, gamma_b=2.25, ref=0.0)`
-  - `prelec_weighting(prob, gamma_w=0.61)`
-  - `prospect_certainty(b, prob)`  → Ω
-
-**Selection logic:**
-- **Regression:** for each logit, pick the node (logit or mask) with max Ω  
-- **Classification:** for each class, pick refined logit; then pick class with max Ω  
+- `demo/step4_prospect_certainty.py`
+- `tests/test_step4.py`
 
 ---
 
-### STEP 5  –  Full Demo & Evaluation  *(fifth sprint)*
+### STEP 5  –  Full Demo and Evaluation  *(fifth sprint)*
 **Goal:** Reproduce the paper's benchmark experiments as a demonstration.
 
 **Tasks:**
-- Regression demo with synthetic data (eq. 15 from paper):  `f(x) = x·sin(x) + h₁x + h₂`
-- Classification demo (optional): a small image dataset subset  
-- Plot the certainty index Ω over the input range (reproduce Fig. 6 style)
+- Regression demo with synthetic data: f(x) = x*sin(x) + h1*x + h2
+- Plot the certainty index Omega over the input range
 - Compare output accuracy with and without the module
 
 **Files:**
@@ -208,14 +162,14 @@ Parameters (Kahneman & Tversky, 1992):
 
 ---
 
-### STEP 6  –  Packaging, Documentation & GitHub  *(final sprint)*
+### STEP 6  –  Packaging, Documentation and GitHub  *(final sprint)*
 **Goal:** A clean, installable package suitable for the thesis appendix.
 
 **Tasks:**
-- `pyproject.toml` / `setup.py` for `pip install -e .`  
-- `docs/report.md` — technical report (concept, API, results)
-- GitHub repository with a proper `README.md`, badges, and usage examples  
-- CI: a simple GitHub Action running `pytest tests/`
+- `pyproject.toml` for `pip install -e .`
+- `docs/report.md` — technical report
+- GitHub repository with README, usage examples
+- CI: GitHub Action running `pytest tests/`
 
 ---
 
@@ -226,16 +180,19 @@ alternatives_generator/
 │
 ├── src/
 │   └── alternatives_generator/
-│       ├── __init__.py            ← public API
-│       ├── core.py                ← AlternativesGenerator class (Step 1)
-│       ├── weighted_probability.py ← Pr^w functions (Step 2)
-│       ├── behavior.py            ← behavior function b() (Step 3)
-│       └── prospect.py            ← Ω certainty function (Step 4)
+│       ├── __init__.py               public API
+│       ├── core.py                   AlternativesGenerator class (Step 1)
+│       ├── weighted_probability.py   Pr^w functions (Step 2)
+│       ├── behavior.py               behavior function b() (Step 3)
+│       └── prospect.py               Omega certainty function (Step 4)
 │
 ├── demo/
-│   ├── step0_simple_ann_numpy.py  ← ✅ DONE – baseline ANN (pure NumPy)
-│   ├── step0_simple_ann.py        ← ✅ DONE – baseline ANN (PyTorch)
-│   ├── step1_attach_module.py
+│   ├── step0_simple_ann_numpy.py     DONE – archived baseline (pure NumPy)
+│   ├── step0_simple_ann.py           DONE – archived baseline (PyTorch)
+│   ├── step1_masks_demo.py           DONE – logit masking demo
+│   ├── step2_weighted_probability.py
+│   ├── step3_behavior_function.py
+│   ├── step4_prospect_certainty.py
 │   ├── step5_regression_benchmark.py
 │   └── step5_classification_demo.py
 │
@@ -249,7 +206,7 @@ alternatives_generator/
 │   └── report.md
 │
 ├── pyproject.toml
-└── README.md                      ← this file
+└── README.md
 ```
 
 ---
@@ -258,8 +215,8 @@ alternatives_generator/
 
 1. **Non-invasive** — the module wraps any model without changing its weights or training loop
 2. **Framework-agnostic core** — all math is implemented in NumPy; PyTorch is used as the model interface layer
-3. **Configurable** — all hyperparameters (N^M, R, ε) are exposed as constructor arguments
-4. **Observable** — every intermediate value (z, Pr, b, Ω) can be inspected for research purposes
+3. **Configurable** — all hyperparameters (N^M, R, epsilon) are exposed as constructor arguments
+4. **Observable** — every intermediate value (z, Pr, b, Omega) can be inspected for research purposes
 5. **Reproducible** — all random operations accept a seed
 
 ---
@@ -268,9 +225,9 @@ alternatives_generator/
 
 | Package | Purpose | Step |
 |---------|---------|------|
-| `numpy` | All core math | 0–6 |
-| `scipy` | `wasserstein_distance` | 3 |
-| `torch` | Model definition, training loop, tensor ops | 0–6 |
+| `numpy` | All core math | 0-6 |
+| `scipy` | wasserstein_distance | 3 |
+| `torch` | Model definition, training loop, tensor ops | 0-6 |
 | `matplotlib` | Plots and visualisation | 5 |
 | `pytest` | Unit tests | all |
 
