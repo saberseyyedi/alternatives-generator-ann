@@ -1,6 +1,5 @@
 # Alternatives Generator for ANN
 ### Master Research Project – RCSE, TU Ilmenau  
-*15 credits · Research basis for the following 30-credit thesis*
 
 ---
 
