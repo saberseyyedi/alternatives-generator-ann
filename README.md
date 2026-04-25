@@ -37,7 +37,7 @@ Alternatives Generator to *any* existing ANN without touching its internals.
 ## Development Roadmap
 
 ```
-Step 1  ──► DONE – Logit Masking demo
+Step 1  ──► DONE – Logit Masking demo 
 Step 2  ──► WeightedProbability function
 Step 3  ──► BehaviorFunction
 Step 4  ──► ProspectCertainty integration
@@ -50,7 +50,7 @@ Step 6  ──► Packaging, docs, GitHub release
 ## Step-by-Step Plan (Detailed)
 
 ### STEP 1  –  Logit Masking Demo  
-**Status:** Done. 
+**Status:** Done.  
 **Goal:** Demonstrate that mask nodes can be attached to any output logit,
 each with a random partial connection to the previous layer.
 
@@ -60,15 +60,16 @@ each with a random partial connection to the previous layer.
 - 3 masks per logit, each randomly connected to 2 of the 4 left neurons
 - Weight values for every connection
 - Output value for every logit and every mask
-- A visual connection map showing which neurons each mask uses
+- A visual network diagram matching Fig.1 from the paper
+- A terminal connection map showing which neurons each mask uses
 
 **Key concept:** Each mask sees only part of the input, so it produces
 a slightly different output value than the original logit. The spread
 between these values is the first signal of uncertainty.
 
-**Files:** `demo/step1_masks_demo.py`
+**File:** `demo/step1_masks_demo.py`
 
-**Configuration (easy to change at the top of the file):**
+**Configuration — change these 4 numbers at the top of the file:**
 ```python
 N_LEFT  = 4   # neurons in the previous layer
 N_RIGHT = 2   # logits in the output layer
@@ -76,10 +77,16 @@ N_MASKS = 3   # masks per logit
 N_CONN  = 2   # connections per mask (half of N_LEFT)
 ```
 
+**Run:**
+```bash
+python demo/step1_masks_demo.py
+```
+
 ---
 
 ### STEP 2  –  WeightedProbability Function  *(next sprint)*
-**Goal:** Assign each node (original + masks) a weighted probability Pr^w.
+**Status:** Planned.  
+**Goal:** Assign each node (original logit + masks) a weighted probability Pr^w.
 
 **Concept (from paper Section "Weighted probability"):**
 
@@ -92,10 +99,10 @@ Equations from the paper:
 ```
 Pr_t(u_t) = count(u_t, {masks, logit}) / (N^M + 1)
 
-w_i,t   = 1 / ln(|u_i,t − µ| / d + e + ε)        # logit weight
-w_i,j,t = 1 / ln(|u_i,j,t − µ| / d + e + ε + s)  # mask weight
+w_i,t   = 1 / ln(|u_i,t - mu| / d + e + eps)        # logit weight
+w_i,j,t = 1 / ln(|u_i,j,t - mu| / d + e + eps + s)  # mask weight
 
-Pr^w_t(u_t, w_t) = w_t · Pr_t(u_t)   [then normalized across siblings]
+Pr^w_t(u_t, w_t) = w_t * Pr_t(u_t)   [then normalized across siblings]
 ```
 
 **Files to create:**
@@ -106,16 +113,17 @@ Pr^w_t(u_t, w_t) = w_t · Pr_t(u_t)   [then normalized across siblings]
 ---
 
 ### STEP 3  –  Behavior Function  *(third sprint)*
+**Status:** Planned.  
 **Goal:** Measure how much each node helps the model output distribution
 align with the training label distribution.
 
 **Concept (from paper Section "Behavior function"):**
 ```
-b(u_t) = W2(Y^s, Y_{t-1}) − W2(Y^s, Y_t(g(u_t)))
+b(u_t) = W2(Y^s, Y_{t-1}) - W2(Y^s, Y_t(g(u_t)))
 ```
-- Positive b → node improves alignment with training distribution
-- Negative b → node moves output distribution further away
-- Zero        → node has no effect
+- Positive b — node improves alignment with training distribution
+- Negative b — node moves output distribution further away
+- Zero — node has no effect
 
 **Files to create:**
 - `src/alternatives_generator/behavior.py`
@@ -125,6 +133,7 @@ b(u_t) = W2(Y^s, Y_{t-1}) − W2(Y^s, Y_t(g(u_t)))
 ---
 
 ### STEP 4  –  ProspectCertainty Integration  *(fourth sprint)*
+**Status:** Planned.  
 **Goal:** Combine Pr^w and b() through Kahneman-Tversky prospect theory
 to produce a scalar certainty score Omega for each node.
 
@@ -148,26 +157,28 @@ Parameters: e1 = e2 = 0.88,  gamma_b = 2.25,  gamma_w = 0.61
 ---
 
 ### STEP 5  –  Full Demo and Evaluation  *(fifth sprint)*
+**Status:** Planned.  
 **Goal:** Reproduce the paper's benchmark experiments as a demonstration.
 
 **Tasks:**
 - Regression demo with synthetic data: f(x) = x*sin(x) + h1*x + h2
-- Plot the certainty index Omega over the input range
+- Plot the certainty index Omega over the input range (reproduce Fig.6 style)
 - Compare output accuracy with and without the module
 
-**Files:**
+**Files to create:**
 - `demo/step5_regression_benchmark.py`
 - `demo/step5_classification_demo.py`
 
 ---
 
 ### STEP 6  –  Packaging, Documentation and GitHub  *(final sprint)*
+**Status:** Planned.  
 **Goal:** A clean, installable package suitable for the thesis appendix.
 
 **Tasks:**
 - `pyproject.toml` for `pip install -e .`
 - `docs/report.md` — technical report
-- GitHub repository with README, usage examples
+- GitHub repository with README and usage examples
 - CI: GitHub Action running `pytest tests/`
 
 ---
@@ -186,9 +197,7 @@ alternatives_generator/
 │       └── prospect.py               Omega certainty function (Step 4)
 │
 ├── demo/
-│   ├── step0_simple_ann_numpy.py     DONE – archived baseline (pure NumPy)
-│   ├── step0_simple_ann.py           DONE – archived baseline (PyTorch)
-│   ├── step1_masks_demo.py           DONE – logit masking demo
+│   ├── step1_masks_demo.py           DONE – logit masking + network diagram
 │   ├── step2_weighted_probability.py
 │   ├── step3_behavior_function.py
 │   ├── step4_prospect_certainty.py
@@ -224,13 +233,16 @@ alternatives_generator/
 
 | Package | Purpose | Step |
 |---------|---------|------|
-| `numpy` | All core math | 0-6 |
+| `numpy` | All core math | 1-6 |
 | `scipy` | wasserstein_distance | 3 |
-| `torch` | Model definition, training loop, tensor ops | 0-6 |
-| `matplotlib` | Plots and visualisation | 5 |
+| `torch` | Model definition, training loop, tensor ops | 1-6 |
+| `matplotlib` | Network diagram and plots | 1-6 |
 | `pytest` | Unit tests | all |
 
-Install: `pip install torch numpy scipy matplotlib pytest`
+Install:
+```bash
+pip install torch numpy scipy matplotlib pytest
+```
 
 ---
 
