@@ -1,14 +1,17 @@
 """
 run_masking.py
 ==============
-Interactive command-line script to demonstrate the LogitMaskingLayer.
+Demonstration script for LogitMaskingLayer.
 
-This script:
-  1. Asks the user for configuration (num_masks, connection_ratio)
-  2. Creates a simple nn.Linear model
-  3. Wraps it with LogitMaskingLayer
-  4. Runs a forward pass with a sample input
-  5. Prints results clearly
+This script is FIXED for demonstration purposes.
+The model architecture and input data are predefined.
+The user only controls two parameters:
+    - num_masks        (how many alternatives per logit)
+    - connection_ratio (how many connections each mask keeps)
+
+Fixed internally:
+    base_layer = nn.Linear(8, 3)   8 inputs, 3 output logits
+    x          = torch.randn(4, 8)  4 sample inputs
 
 Run:
     python run_masking.py
@@ -16,8 +19,6 @@ Run:
 
 import sys
 import os
-
-# Make sure the src package is importable when running from project root
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "src"))
 
 import torch
@@ -26,126 +27,184 @@ from alternatives_generator import LogitMaskingLayer
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Pretty print helpers
+# Fixed demo configuration
 # ══════════════════════════════════════════════════════════════════════════════
 
-def separator(char="═", width=65):
-    print(char * width)
+# These values are fixed — not asked from the user.
+# They define the demo model and input.
+IN_FEATURES  = 8    # number of input neurons
+OUT_FEATURES = 3    # number of output logits
+BATCH_SIZE   = 4    # number of input samples
+MODEL_SEED   = 42   # seed for model weights (fixed, reproducible)
+INPUT_SEED   = 7    # seed for input data   (fixed, reproducible)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Print helpers
+# ══════════════════════════════════════════════════════════════════════════════
+
+W = 65   # line width
+
+def line(char="═"):
+    print(char * W)
 
 def section(title):
     print()
-    separator()
+    line()
     print(f"  {title}")
-    separator()
-
-def subsection(title):
-    print(f"\n  {'─'*61}")
-    print(f"  {title}")
-    print(f"  {'─'*61}")
+    line()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# User input helpers
+# User input — only 2 questions
 # ══════════════════════════════════════════════════════════════════════════════
 
-def ask_int(prompt, default, min_val=1, max_val=20):
+def ask_num_masks() -> int:
     while True:
-        raw = input(f"  {prompt} [default: {default}]: ").strip()
+        raw = input("  Number of masks per logit [default: 3]: ").strip()
         if raw == "":
-            return default
+            return 3
         try:
             val = int(raw)
-            if min_val <= val <= max_val:
+            if 1 <= val <= 10:
                 return val
-            print(f"  Please enter a value between {min_val} and {max_val}.")
+            print("  Please enter a value between 1 and 10.")
         except ValueError:
             print("  Please enter a whole number.")
 
-def ask_float(prompt, default, min_val=0.1, max_val=0.9):
+
+def ask_connection_ratio() -> float:
     while True:
-        raw = input(f"  {prompt} [default: {default}]: ").strip()
+        raw = input("  Connection ratio (0.1 – 0.9) [default: 0.5]: ").strip()
         if raw == "":
-            return default
+            return 0.5
         try:
             val = float(raw)
-            if min_val <= val <= max_val:
+            if 0.1 <= val <= 0.9:
                 return val
-            print(f"  Please enter a value between {min_val} and {max_val}.")
+            print("  Please enter a value between 0.1 and 0.9.")
         except ValueError:
-            print("  Please enter a decimal number (e.g. 0.5).")
+            print("  Please enter a decimal number like 0.5.")
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# Print results
+# Output printing
 # ══════════════════════════════════════════════════════════════════════════════
 
-def print_results(output, in_features, out_features, num_masks, batch_size):
-    """Print all results from a MaskingOutput in a readable format."""
+def print_input_parameters(num_masks, connection_ratio, n_connections):
+    section("INPUT PARAMETERS")
+    print(f"\n  Model (fixed for demo):")
+    print(f"    base_layer   : nn.Linear({IN_FEATURES}, {OUT_FEATURES})")
+    print(f"    input x      : torch.randn({BATCH_SIZE}, {IN_FEATURES})")
+    print()
+    print(f"  User parameters:")
+    print(f"    num_masks        : {num_masks}")
+    print(f"    connection_ratio : {connection_ratio}")
+    print(f"    n_connections    : {n_connections}  "
+          f"(= round({IN_FEATURES} × {connection_ratio}) per mask per logit)")
 
-    # ── original logits ───────────────────────────────────────────────────────
-    section("ORIGINAL LOGITS  (unmasked, fully connected)")
-    print(f"\n  Shape: {list(output.original.shape)}  "
-          f"→ {batch_size} samples × {out_features} logits\n")
-    print(f"  {'':5} " + "  ".join(f"logit_{i:>2}" for i in range(out_features)))
-    print(f"  {'':5} " + "  ".join("─────────" for _ in range(out_features)))
-    for b in range(batch_size):
-        row = "  ".join(f"{output.original[b, i].item():>+9.4f}"
-                        for i in range(out_features))
-        print(f"  s{b:<4} {row}")
 
-    # ── masked logits ─────────────────────────────────────────────────────────
-    section("MASKED LOGITS  (per mask, per logit)")
-    print(f"\n  Shape: {list(output.masked.shape)}  "
-          f"→ {batch_size} samples × {out_features} logits × {num_masks} masks\n")
+def print_original(output):
+    section("ORIGINAL LOGITS  —  fully connected, no masking")
+    print(f"\n  Shape: {list(output.original.shape)}"
+          f"  →  {BATCH_SIZE} samples × {OUT_FEATURES} logits\n")
 
-    for b in range(batch_size):
-        subsection(f"Sample {b}")
-        print(f"\n  {'':10} " +
-              "  ".join(f"logit_{i:>2}" for i in range(out_features)))
-        print(f"  {'':10} " +
-              "  ".join("─────────" for _ in range(out_features)))
+    # Header
+    header = "  ".join(f"  logit_{i}" for i in range(OUT_FEATURES))
+    print(f"  {'Sample':<10}  {header}")
+    print(f"  {'──────':<10}  " +
+          "  ".join("────────" for _ in range(OUT_FEATURES)))
 
-        # original row
-        orig_row = "  ".join(
-            f"{output.original[b, i].item():>+9.4f}" for i in range(out_features)
+    for b in range(BATCH_SIZE):
+        vals = "  ".join(
+            f"{output.original[b, i].item():>+8.4f}"
+            for i in range(OUT_FEATURES)
         )
-        print(f"  {'original':<10} {orig_row}")
+        print(f"  sample_{b:<3}   {vals}")
 
-        # one row per mask
+
+def print_masked(output, num_masks):
+    section("MASKED LOGITS  —  partial connections per mask")
+    print(f"\n  Shape: {list(output.masked.shape)}"
+          f"  →  {BATCH_SIZE} samples × {OUT_FEATURES} logits × {num_masks} masks\n")
+
+    for b in range(BATCH_SIZE):
+        print(f"  ── Sample {b} " + "─" * 50)
+        print()
+
+        # Column headers
+        header = "  ".join(f"  logit_{i}" for i in range(OUT_FEATURES))
+        print(f"  {'':12}  {header}")
+        print(f"  {'':12}  " +
+              "  ".join("────────" for _ in range(OUT_FEATURES)))
+
+        # Original row
+        orig = "  ".join(
+            f"{output.original[b, i].item():>+8.4f}"
+            for i in range(OUT_FEATURES)
+        )
+        print(f"  {'original':<12}  {orig}")
+
+        # One row per mask
         for m in range(num_masks):
-            mask_row = "  ".join(
-                f"{output.masked[b, i, m].item():>+9.4f}"
-                for i in range(out_features)
+            row = "  ".join(
+                f"{output.masked[b, i, m].item():>+8.4f}"
+                for i in range(OUT_FEATURES)
             )
-            print(f"  {f'mask_{m}':<10} {mask_row}")
+            print(f"  {f'mask_{m}':<12}  {row}")
 
-        # mean row
-        mean_row = "  ".join(
-            f"{output.mean[b, i].item():>+9.4f}" for i in range(out_features)
+        print()
+
+
+def print_mean(output):
+    section("MEAN  —  average across original + all masks")
+    print(f"\n  Shape: {list(output.mean.shape)}\n")
+
+    header = "  ".join(f"  logit_{i}" for i in range(OUT_FEATURES))
+    print(f"  {'Sample':<10}  {header}")
+    print(f"  {'──────':<10}  " +
+          "  ".join("────────" for _ in range(OUT_FEATURES)))
+
+    for b in range(BATCH_SIZE):
+        vals = "  ".join(
+            f"{output.mean[b, i].item():>+8.4f}"
+            for i in range(OUT_FEATURES)
         )
-        print(f"  {'─'*10} " + "  ".join("─────────" for _ in range(out_features)))
-        print(f"  {'mean':<10} {mean_row}")
+        print(f"  sample_{b:<3}   {vals}")
 
-    # ── spread ────────────────────────────────────────────────────────────────
-    section("SPREAD  (max − min across alternatives per logit)")
-    print(f"\n  Spread = how different the alternatives are.")
-    print(f"  HIGH spread → uncertain.   LOW spread → consistent.\n")
-    print(f"  {'':5} " + "  ".join(f"logit_{i:>2}" for i in range(out_features)))
-    print(f"  {'':5} " + "  ".join("─────────" for _ in range(out_features)))
-    for b in range(batch_size):
-        row   = "  ".join(f"{output.spread[b, i].item():>9.4f}"
-                          for i in range(out_features))
-        score = output.uncertainty[b].item()
-        flag  = "← uncertain" if score > 0.5 else "← consistent"
-        print(f"  s{b:<4} {row}    uncertainty={score:.4f}  {flag}")
 
-    # ── uncertainty summary ───────────────────────────────────────────────────
-    section("UNCERTAINTY SUMMARY  (mean spread across all logits)")
-    print(f"\n  One number per sample — summarises overall model certainty.\n")
-    for b in range(batch_size):
-        score = output.uncertainty[b].item()
-        bar   = "█" * min(40, int(score * 20))
-        print(f"  Sample {b}:  {score:.4f}   {bar}")
+def print_spread(output):
+    section("SPREAD  —  max − min across alternatives per logit")
+    print()
+    print("  Spread measures how much the alternatives disagree.")
+    print("  HIGH spread  →  masks disagree  →  UNCERTAIN output")
+    print("  LOW  spread  →  masks agree     →  CONSISTENT output")
+    print()
+
+    header = "  ".join(f"  logit_{i}" for i in range(OUT_FEATURES))
+    print(f"  {'Sample':<10}  {header}    {'Uncertainty':>12}  Interpretation")
+    print(f"  {'──────':<10}  " +
+          "  ".join("────────" for _ in range(OUT_FEATURES)) +
+          "    " + "─" * 12 + "  " + "─" * 14)
+
+    for b in range(BATCH_SIZE):
+        spread_vals = "  ".join(
+            f"{output.spread[b, i].item():>8.4f}"
+            for i in range(OUT_FEATURES)
+        )
+        u    = output.uncertainty[b].item()
+        flag = "UNCERTAIN    " if u > 0.5 else "consistent   "
+        print(f"  sample_{b:<3}   {spread_vals}    {u:>12.4f}  {flag}")
+
+    # Visual bar chart for uncertainty
+    print()
+    line("─")
+    print("  Uncertainty per sample (visual):")
+    print()
+    for b in range(BATCH_SIZE):
+        u   = output.uncertainty[b].item()
+        bar = "█" * min(40, int(u * 15))
+        print(f"  sample_{b}: {u:.4f}  {bar}")
     print()
 
 
@@ -154,103 +213,51 @@ def print_results(output, in_features, out_features, num_masks, batch_size):
 # ══════════════════════════════════════════════════════════════════════════════
 
 def main():
-    separator("█")
-    print("  LogitMaskingLayer — Interactive Demo")
+    # ── header ────────────────────────────────────────────────────────────────
+    line("█")
     print("  Alternatives Generator for ANN")
+    print("  LogitMaskingLayer — Demonstration")
     print("  RCSE Master Research Project, TU Ilmenau")
-    separator("█")
+    line("█")
 
-    # ── step 1: get user configuration ────────────────────────────────────────
-    section("CONFIGURATION")
-    print("\n  Press Enter to accept the default value shown in brackets.\n")
+    # ── ask only 2 questions ──────────────────────────────────────────────────
+    section("USER INPUT")
+    print()
+    num_masks        = ask_num_masks()
+    connection_ratio = ask_connection_ratio()
 
-    in_features  = ask_int("Number of input neurons (in_features)", default=8)
-    out_features = ask_int("Number of output logits (out_features)", default=3)
-    num_masks    = ask_int("Number of masks per logit (num_masks)", default=3)
-    ratio        = ask_float("Connection ratio per mask (0.1 – 0.9)", default=0.5)
-    batch_size   = ask_int("Number of input samples (batch_size)", default=4)
-    seed         = ask_int("Random seed (for reproducibility)", default=42,
-                           min_val=0, max_val=99999)
+    # ── build fixed demo model ────────────────────────────────────────────────
+    torch.manual_seed(MODEL_SEED)
+    base_layer = nn.Linear(IN_FEATURES, OUT_FEATURES)
 
-    # ── step 2: build model ────────────────────────────────────────────────────
-    section("BUILDING MODEL")
-
-    # Base layer — a standard PyTorch Linear layer
-    # This represents the output layer of any trained neural network
-    torch.manual_seed(seed)
-    base_linear = nn.Linear(in_features, out_features)
-
-    print(f"\n  Base layer:   nn.Linear({in_features}, {out_features})")
-    print(f"  Weight shape: {list(base_linear.weight.shape)}")
-    print(f"    (rows = logits, cols = input neurons)")
-
-    # Wrap it with the masking layer
-    masking_layer = LogitMaskingLayer(
-        base_layer       = base_linear,
+    layer = LogitMaskingLayer(
+        base_layer       = base_layer,
         num_masks        = num_masks,
-        connection_ratio = ratio,
-        seed             = seed,
+        connection_ratio = connection_ratio,
+        seed             = MODEL_SEED,
     )
 
-    print(f"\n  LogitMaskingLayer:")
-    print(f"    {masking_layer}")
-    print(f"\n  Connections per mask: {masking_layer.n_connections} "
-          f"out of {in_features}  "
-          f"({ratio*100:.0f}%)")
+    # ── fixed demo input ──────────────────────────────────────────────────────
+    torch.manual_seed(INPUT_SEED)
+    x = torch.randn(BATCH_SIZE, IN_FEATURES)
 
-    # ── step 3: show binary masks ──────────────────────────────────────────────
-    section("BINARY MASKS  (which connections each mask keeps)")
-    print(f"\n  Shape: {list(masking_layer.binary_masks.shape)}")
-    print(f"  Interpretation: binary_masks[mask_index, logit_index, input_index]")
-    print(f"  1 = connection kept,   0 = connection removed\n")
-
-    for m in range(num_masks):
-        print(f"  Mask {m}:")
-        print(f"  {'':10} " +
-              " ".join(f"in{i:<3}" for i in range(in_features)))
-        for i in range(out_features):
-            bits = "  ".join(
-                f"  {'1' if masking_layer.binary_masks[m, i, j].item() == 1 else '·'}"
-                for j in range(in_features)
-            )
-            print(f"  logit_{i:<4} {bits}")
-        print()
-
-    # ── step 4: create sample input and run forward pass ──────────────────────
-    section("FORWARD PASS")
-
-    torch.manual_seed(seed + 1)
-    x = torch.randn(batch_size, in_features)
-    print(f"\n  Input x — shape: {list(x.shape)}")
-    print(f"  ({batch_size} samples, each with {in_features} features)\n")
-    for b in range(batch_size):
-        vals = "  ".join(f"{v.item():>+6.3f}" for v in x[b])
-        print(f"  sample_{b}: [ {vals} ]")
-
-    # Run the masking layer
+    # ── forward pass ──────────────────────────────────────────────────────────
     with torch.no_grad():
-        output = masking_layer(x)
+        output = layer(x)
 
-    # ── step 5: print all results ──────────────────────────────────────────────
-    print_results(output, in_features, out_features, num_masks, batch_size)
+    # ── print all results ─────────────────────────────────────────────────────
+    print_input_parameters(num_masks, connection_ratio, layer.n_connections)
+    print_original(output)
+    print_masked(output, num_masks)
+    print_mean(output)
+    print_spread(output)
 
-    # ── step 6: key insight ────────────────────────────────────────────────────
-    separator()
-    print("\n  KEY INSIGHT")
-    separator("─")
-    print("\n  The SPREAD value is the foundation of uncertainty estimation.")
-    print("  When spread is HIGH across the alternatives of a logit,")
-    print("  the model is sensitive to which inputs it sees → UNCERTAIN.")
-    print("  When spread is LOW, the model is stable → CERTAIN.")
-    print()
-    print("  Next steps in the project:")
-    print("   Step 2 → Weighted Probability: score each alternative by")
-    print("            how close it is to the group mean")
-    print("   Step 3 → Behavior Function: measure if each alternative")
-    print("            improves alignment with the training distribution")
-    print("   Step 4 → Prospect Certainty: combine scores into final Ω")
-    print()
-    separator("█")
+    # ── closing message ───────────────────────────────────────────────────────
+    line("█")
+    print("  The SPREAD values above are the foundation of uncertainty")
+    print("  estimation. They feed into the Weighted Probability (Step 3)")
+    print("  and Prospect Certainty (Step 4) computations.")
+    line("█")
     print()
 
 
