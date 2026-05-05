@@ -4,7 +4,7 @@ A lightweight PyTorch module that generates masked alternative outputs for
 each logit in a neural network, providing an interpretable uncertainty signal
 without retraining or modifying the base model.
 
-> **Research Project** — RCSE Master Programme, TU Ilmenau, 2025  
+> **Research Project** — RCSE Master Programme, TU Ilmenau, Summer Semester 2026  
 > Based on: Yousef & Li, *Prospect certainty for data-driven models*, Scientific Reports 15:8278 (2025)
 
 ---
