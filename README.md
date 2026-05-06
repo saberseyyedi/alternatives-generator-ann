@@ -90,10 +90,10 @@ layer = LogitMaskingLayer(
 x      = torch.randn(4, 128)
 output = layer(x)
 
-print(output.original)      # (4, 10)   — original logits
+print(output.original)      # (4, 10)    — original logits
 print(output.masked)        # (4, 10, 3) — masked alternatives
-print(output.spread)        # (4, 10)   — uncertainty per logit
-print(output.uncertainty)   # (4,)      — scalar score per sample
+print(output.spread)        # (4, 10)    — uncertainty per logit
+print(output.uncertainty)   # (4,)       — scalar score per sample
 ```
 
 The module infers `in_features` and `out_features` automatically.
@@ -118,12 +118,16 @@ alternatives-generator-ann/
 │
 ├── src/
 │   └── alternatives_generator/
-│       ├── __init__.py
+│       ├── __init__.py           ← makes module importable as a package
 │       └── logit_masking.py      ← core reusable module
+│
+├── demo/
+│   └── logit_masking_network.png ← auto-generated network diagram
 │
 ├── tests/
 │   └── test_logit_masking.py     ← 15 automated unit tests
 │
+├── .gitignore
 ├── run_masking.py                ← interactive demo script
 └── README.md
 ```
