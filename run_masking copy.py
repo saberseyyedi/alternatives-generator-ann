@@ -4,8 +4,8 @@ run_masking.py
 Demonstration script for LogitMaskingLayer.
 
 Fixed internally:
-    base_layer = nn.Linear(4, 2)
-    x          = torch.randn(4, 4)
+    base_layer = nn.Linear(8, 3)
+    x          = torch.randn(4, 8)
 
 User controls only:
     - num_masks
@@ -33,23 +33,16 @@ from alternatives_generator import LogitMaskingLayer
 # Fixed demo configuration
 # ══════════════════════════════════════════════════════════════════════════════
 
-IN_FEATURES  = 4
-OUT_FEATURES = 2
+IN_FEATURES  = 8
+OUT_FEATURES = 3
 BATCH_SIZE   = 4
 MODEL_SEED   = 42
 INPUT_SEED   = 7
 
 MASK_COLOURS = [
-    "#EF476F",  # Rose Red
-    "#06D6A0",  # Emerald Mint
-    "#118AB2",  # Ocean Blue
-    "#FFD166",  # Soft Yellow
-    "#8338EC",  # Violet
-    "#FB8500",  # Orange
-    "#3A86FF",  # Bright Blue
-    "#FF006E",  # Magenta
-    "#80ED99",  # Fresh Green
-    "#00B4D8",  # Sky Cyan
+    "#e05c5c", "#5cb85c", "#5c7de0", "#e0c45c",
+    "#a05ce0", "#e08c5c", "#5ccce0", "#e05ca0",
+    "#8ce05c", "#5ce0a0",
 ]
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -199,19 +192,18 @@ def plot_network_diagram(layer, output, sample_index=0):
     n_mask = layer.num_masks
 
     # ── figure ────────────────────────────────────────────────────────────────
-    fig_h = 6.5
-    fig, ax = plt.subplots(figsize=(11, fig_h))
-    ax.set_aspect("equal", adjustable="box")
-    ax.set_xlim(0.5, 11.2)
-    ax.set_ylim(-1.5, in_f + 0.5)
+    fig_h = max(10, in_f * 1.2 + 1)
+    fig, ax = plt.subplots(figsize=(15, fig_h))
+    ax.set_xlim(0, 15)
+    ax.set_ylim(-0.5, in_f + 0.5)
     ax.axis("off")
     fig.patch.set_facecolor("white")
 
     # ── x positions of each column ────────────────────────────────────────────
     X_LEFT  = 1.8    # input neurons
     X_LOGIT = 6.8    # original logits
-    X_MASK  = 6.8   # mask nodes
-    X_BRACE = 9.6   # bracket for d/mu
+    X_MASK  = 10.2   # mask nodes
+    X_BRACE = 12.4   # bracket for d/mu
 
     # ── y positions ───────────────────────────────────────────────────────────
     # Input neurons: evenly spaced top to bottom
@@ -224,18 +216,15 @@ def plot_network_diagram(layer, output, sample_index=0):
     mask_spacing = min(0.70, (in_f * 0.45) / max(out_f * n_mask, 1))
     mask_ys = []
     for i in range(out_f):
-        c = logit_ys[i]
-
-        # Masks start below the original logit, like the paper figure
-        start_y = c - 0.65
-        ys = [start_y - m * 0.36 for m in range(n_mask)]
-
+        c    = logit_ys[i]
+        span = mask_spacing * (n_mask - 1)
+        ys   = [c + span / 2 - m * mask_spacing for m in range(n_mask)]
         mask_ys.append(ys)
 
     # ── node sizes ────────────────────────────────────────────────────────────
-    R_LEFT  = 0.30
-    R_LOGIT = 0.30
-    R_MASK  = 0.16
+    R_LEFT  = 0.36
+    R_LOGIT = 0.32
+    R_MASK  = 0.20
 
     # ── drawing helpers ───────────────────────────────────────────────────────
 
@@ -311,7 +300,7 @@ def plot_network_diagram(layer, output, sample_index=0):
     # Original logits — medium grey, slightly larger
     for li in range(out_f):
         draw_circle(X_LOGIT, logit_ys[li], R_LOGIT,
-                    face="#f2f2f2", edge="#333333", lw=2.0)
+                    face="#aaaaaa", edge="#333333", lw=2.0)
 
     # Mask nodes — each mask has its own colour
     for li in range(out_f):
@@ -327,7 +316,7 @@ def plot_network_diagram(layer, output, sample_index=0):
     # Input neuron labels (to the left of each circle)
     for ni in range(in_f):
         label(X_LEFT - R_LEFT - 0.10, left_ys[ni],
-              f"neuron_{ni}", size=6,
+              f"neuron_{ni}", size=7.5,
               colour="#555555", ha="right")
 
     # Original logit labels with value
@@ -338,7 +327,7 @@ def plot_network_diagram(layer, output, sample_index=0):
             logit_ys[li],
             colour="#111111",
             label=f"u\u0302_{li} = {val:+.3f}",
-            size=9.5, bold=True, offset=0.35
+            size=9.5, bold=True, offset=0.50
         )
 
     # Mask node labels with value
@@ -347,11 +336,11 @@ def plot_network_diagram(layer, output, sample_index=0):
             val = output.masked[sample_index, li, m].item()
             col = MASK_COLOURS[m % len(MASK_COLOURS)]
             draw_arrow_label(
-                X_MASK + R_MASK + 0.20,
+                X_MASK + R_MASK + 0.10,
                 mask_ys[li][m],
                 colour=col,
                 label=f"u\u0302_{li},{m+1} = {val:+.3f}",
-                size=7.5, bold=False, offset=0.45
+                size=8.0, bold=False, offset=0.48
             )
 
     # ══════════════════════════════════════════════════════════════════════════
@@ -395,13 +384,10 @@ def plot_network_diagram(layer, output, sample_index=0):
     # STEP 5 — title, caption, legend
     # ══════════════════════════════════════════════════════════════════════════
 
-    #ax.set_title(
-    #    "Logit Masking Structure",
-    #    fontsize=11,
-    #    fontweight="normal",
-    #    pad=8,
-    #    color="#333333"
-    #)
+    ax.set_title(
+        "Alternatives Generator — Logit Masking Network Diagram",
+        fontsize=13, fontweight="bold", pad=16, color="#111111"
+    )
 
     caption = (
         f"Fig. 1   "
@@ -410,40 +396,40 @@ def plot_network_diagram(layer, output, sample_index=0):
         f"({layer.n_connections} of {in_f} connections per mask)   "
         f"[sample {sample_index}]"
     )
-    fig.text(0.5, 0.055, caption,
+    fig.text(0.5, 0.008, caption,
              ha="center", fontsize=8.5,
              color="#666666", style="italic")
 
     # Build legend
-    #handles = [
-    #    mpatches.Patch(facecolor="#dcdcdc", edgecolor="#888888",
-    #                   label=f"Input neurons  ({in_f} nodes)"),
-    #    mpatches.Patch(facecolor="#aaaaaa", edgecolor="#333333",
-    #                   label=f"Original logits  ({out_f} nodes, fully connected)"),
-    #    plt.Line2D([0], [0], color="#c8c8c8", lw=2,
-    #               label="Grey lines = full connections (all neurons)"),
-    #]
-    #for m in range(n_mask):
-    #    col = MASK_COLOURS[m % len(MASK_COLOURS)]
-    #    handles.append(mpatches.Patch(
-    #        facecolor=col, edgecolor="#222222",
-    #        label=f"Mask {m}  "
-    #              f"(neurons: {[ni for ni in range(in_f) if layer.binary_masks[m, 0, ni].item()==1]})"
-    #    ))
+    handles = [
+        mpatches.Patch(facecolor="#dcdcdc", edgecolor="#888888",
+                       label=f"Input neurons  ({in_f} nodes)"),
+        mpatches.Patch(facecolor="#aaaaaa", edgecolor="#333333",
+                       label=f"Original logits  ({out_f} nodes, fully connected)"),
+        plt.Line2D([0], [0], color="#c8c8c8", lw=2,
+                   label="Grey lines = full connections (all neurons)"),
+    ]
+    for m in range(n_mask):
+        col = MASK_COLOURS[m % len(MASK_COLOURS)]
+        handles.append(mpatches.Patch(
+            facecolor=col, edgecolor="#222222",
+            label=f"Mask {m}  "
+                  f"(neurons: {[ni for ni in range(in_f) if layer.binary_masks[m, 0, ni].item()==1]})"
+        ))
 
-    #ax.legend(
-    #    handles=handles,
-    #    loc="lower left",
-    #    fontsize=7.5,
-    #    framealpha=0.93,
-    #    edgecolor="#cccccc",
-    #    bbox_to_anchor=(0.0, 0.0)
-    #)
+    ax.legend(
+        handles=handles,
+        loc="lower left",
+        fontsize=7.5,
+        framealpha=0.93,
+        edgecolor="#cccccc",
+        bbox_to_anchor=(0.0, 0.0)
+    )
 
     # ── save ──────────────────────────────────────────────────────────────────
     os.makedirs("demo", exist_ok=True)
     save_path = os.path.join("demo", "logit_masking_network.png")
-    plt.tight_layout(rect=[0, 0.08, 1, 1])
+    plt.tight_layout(rect=[0, 0.04, 1, 1])
     plt.savefig(save_path, dpi=150,
                 bbox_inches="tight", facecolor="white")
     plt.close()
